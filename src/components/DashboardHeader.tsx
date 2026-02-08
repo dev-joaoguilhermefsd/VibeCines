@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Shield,
   X,
+  Menu,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +24,11 @@ import {
 import { Button } from "@/components/ui/button";
 import MovieCard from "@/components/MovieCard";
 import SeriesCard from "@/components/SeriesCard";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface DashboardHeaderProps {
   onOpenAdmin?: () => void;
@@ -35,6 +41,7 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
   
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Filtrar conteúdo baseado na pesquisa
   const searchResults = {
@@ -58,6 +65,11 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
     setSearchQuery("");
   };
 
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <>
       <motion.header
@@ -69,27 +81,28 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <h1
-              onClick={() => navigate("/")}
+              onClick={() => handleNavigate("/")}
               className="text-2xl font-bold text-primary cursor-pointer"
             >
               StreamMax
             </h1>
 
+            {/* NAVEGAÇÃO DESKTOP - Visível apenas em telas médias e grandes */}
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
               <span 
-                onClick={() => navigate("/")} 
+                onClick={() => handleNavigate("/")} 
                 className="cursor-pointer hover:text-primary transition-colors"
               >
                 Início
               </span>
               <span 
-                onClick={() => navigate("/movies")} 
+                onClick={() => handleNavigate("/movies")} 
                 className="cursor-pointer hover:text-primary transition-colors"
               >
                 Filmes
               </span>
               <span 
-                onClick={() => navigate("/series")} 
+                onClick={() => handleNavigate("/series")} 
                 className="cursor-pointer hover:text-primary transition-colors"
               >
                 Séries
@@ -113,18 +126,104 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
               <Search className="w-5 h-5" />
             </Button>
 
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="hidden md:flex">
               <Bell className="w-5 h-5" />
             </Button>
 
+            {/* MENU MOBILE - Visível apenas em telas pequenas */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px]">
+                <div className="flex flex-col gap-4 mt-8">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                        {user?.name?.charAt(0)}
+                      </div>
+                      {isAdmin && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
+                          <Shield className="w-3 h-3 text-background" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{user?.name}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    </div>
+                  </div>
+
+                  <nav className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleNavigate("/")}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-left"
+                    >
+                      <span className="text-foreground font-medium">Início</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavigate("/movies")}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-left"
+                    >
+                      <span className="text-foreground font-medium">Filmes</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavigate("/series")}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-left"
+                    >
+                      <span className="text-foreground font-medium">Séries</span>
+                    </button>
+
+                    {isAdmin && (
+                      <>
+                        <div className="border-t border-border my-2" />
+                        <button
+                          onClick={() => {
+                            onOpenAdmin?.();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-left"
+                        >
+                          <LayoutDashboard className="w-5 h-5 text-primary" />
+                          <span className="text-primary font-medium">Painel Admin</span>
+                        </button>
+                      </>
+                    )}
+                  </nav>
+
+                  <div className="border-t border-border mt-auto pt-4">
+                    <button
+                      onClick={() => handleNavigate("/")}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors w-full text-left mb-2"
+                    >
+                      <Settings className="w-5 h-5" />
+                      <span className="text-foreground">Configurações</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-colors w-full text-left"
+                    >
+                      <LogOut className="w-5 h-5 text-destructive" />
+                      <span className="text-destructive">Sair</span>
+                    </button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* DROPDOWN DESKTOP - Visível apenas em telas médias e grandes */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
+                <Button variant="ghost" className="hidden md:flex items-center gap-2">
                   <div className="relative">
                     <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
                       {user?.name?.charAt(0)}
                     </div>
-                    {/* Badge de Admin */}
                     {isAdmin && (
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
                         <Shield className="w-3 h-3 text-background" />
@@ -139,7 +238,6 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
                 <div className="px-3 py-2">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm font-medium">{user?.name}</p>
-                    {/* Badge de Admin no dropdown */}
                     {isAdmin && (
                       <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-semibold rounded-full flex items-center gap-1">
                         <Shield className="w-3 h-3" />
@@ -152,7 +250,6 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
 
                 <DropdownMenuSeparator />
 
-                {/* Opção de Gerenciamento - Apenas para Admins */}
                 {isAdmin && (
                   <>
                     <DropdownMenuItem onClick={onOpenAdmin} className="gap-2 cursor-pointer">
@@ -287,14 +384,14 @@ const DashboardHeader = ({ onOpenAdmin }: DashboardHeaderProps) => {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => { handleSearchClose(); navigate("/movies"); }}
+                      onClick={() => { handleSearchClose(); handleNavigate("/movies"); }}
                     >
                       Ver todos os filmes
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => { handleSearchClose(); navigate("/series"); }}
+                      onClick={() => { handleSearchClose(); handleNavigate("/series"); }}
                     >
                       Ver todas as séries
                     </Button>

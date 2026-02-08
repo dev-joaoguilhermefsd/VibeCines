@@ -9,7 +9,8 @@ import {
   Maximize, 
   Minimize,
   SkipBack,
-  SkipForward
+  SkipForward,
+  Loader2
 } from "lucide-react";
 import Hls from "hls.js";
 
@@ -24,73 +25,233 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // 🔧 PROBLEMA 4: Estados para controle de tempo
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
   
   const hideTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const hlsRef = useRef<any>(null);
 
-  // Inicializar player
+  // 🔧 INICIALIZAR PLAYER COM TRATAMENTO ADEQUADO DE HLS
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !url) return;
 
+    console.log("🎬 Inicializando player com URL:", url);
+    setIsLoading(true);
+    setError(null);
+
     const isHls = url.includes(".m3u8") || url.includes(".m3u");
 
     if (isHls && Hls.isSupported()) {
-      const hls = new Hls();
+      console.log("📺 Usando HLS.js");
+      
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 600,
+        maxBufferSize: 60 * 1000 * 1000,
+      });
+      
+      hlsRef.current = hls;
+      
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        console.log("✅ HLS: Mídia anexada");
+      });
+
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+        console.log("✅ HLS: Manifest parseado", data);
+        setIsLoading(false);
+        
+        // Tentar reproduzir automaticamente
+        video.play()
+          .then(() => {
+            console.log("✅ Reprodução automática iniciada");
+            setPlaying(true);
+          })
+          .catch((err) => {
+            console.log("⚠️ Autoplay bloqueado pelo navegador:", err);
+            setPlaying(false);
+          });
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.error("❌ HLS Error:", data);
+        
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error("Erro de rede, tentando recuperar...");
+              setError("Erro de rede. Tentando reconectar...");
+              hls.startLoad();
+              break;
+              
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error("Erro de mídia, tentando recuperar...");
+              setError("Erro de mídia. Tentando recuperar...");
+              hls.recoverMediaError();
+              break;
+              
+            default:
+              console.error("Erro fatal não recuperável");
+              setError("Não foi possível reproduzir este vídeo");
+              hls.destroy();
+              setIsLoading(false);
+              break;
+          }
+        }
+      });
+
       hls.loadSource(url);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {});
-      });
-      return () => hls.destroy();
+
+      return () => {
+        console.log("🧹 Limpando HLS");
+        hls.destroy();
+        hlsRef.current = null;
+      };
+      
     } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
+      console.log("🍎 Usando HLS nativo do Safari");
+      
       video.src = url;
-      video.play().catch(() => {});
+      
+      const handleLoadedMetadata = () => {
+        console.log("✅ Metadados carregados");
+        setIsLoading(false);
+        video.play()
+          .then(() => {
+            console.log("✅ Reprodução automática iniciada");
+            setPlaying(true);
+          })
+          .catch((err) => {
+            console.log("⚠️ Autoplay bloqueado:", err);
+            setPlaying(false);
+          });
+      };
+
+      const handleError = () => {
+        console.error("❌ Erro ao carregar vídeo");
+        setError("Erro ao carregar o vídeo");
+        setIsLoading(false);
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleError);
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("error", handleError);
+      };
+      
     } else {
+      console.log("📹 Usando player de vídeo padrão");
+      
       video.src = url;
-      video.play().catch(() => {});
+      
+      const handleLoadedMetadata = () => {
+        console.log("✅ Metadados carregados");
+        setIsLoading(false);
+        video.play()
+          .then(() => {
+            console.log("✅ Reprodução automática iniciada");
+            setPlaying(true);
+          })
+          .catch((err) => {
+            console.log("⚠️ Autoplay bloqueado:", err);
+            setPlaying(false);
+          });
+      };
+
+      const handleError = () => {
+        console.error("❌ Erro ao carregar vídeo");
+        setError("Erro ao carregar o vídeo");
+        setIsLoading(false);
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleError);
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("error", handleError);
+      };
     }
   }, [url]);
 
-  // 🔧 PROBLEMA 4: Listeners para atualizar tempo e duração
+  // Listeners para atualizar tempo e duração
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleTimeUpdate = () => setCurrentTime(video.currentTime);
-    const handleDurationChange = () => setDuration(video.duration);
+    const handleDurationChange = () => {
+      console.log("⏱️ Duração definida:", video.duration);
+      setDuration(video.duration);
+    };
     const handleProgress = () => {
       if (video.buffered.length > 0) {
         setBuffered(video.buffered.end(video.buffered.length - 1));
       }
     };
+    const handleWaiting = () => {
+      console.log("⏳ Aguardando buffer...");
+      setIsLoading(true);
+    };
+    const handleCanPlay = () => {
+      console.log("✅ Pode reproduzir");
+      setIsLoading(false);
+    };
+    const handlePlaying = () => {
+      console.log("▶️ Reproduzindo");
+      setPlaying(true);
+      setIsLoading(false);
+    };
+    const handlePause = () => {
+      console.log("⏸️ Pausado");
+      setPlaying(false);
+    };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("durationchange", handleDurationChange);
     video.addEventListener("progress", handleProgress);
+    video.addEventListener("waiting", handleWaiting);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("playing", handlePlaying);
+    video.addEventListener("pause", handlePause);
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("durationchange", handleDurationChange);
       video.removeEventListener("progress", handleProgress);
+      video.removeEventListener("waiting", handleWaiting);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("pause", handlePause);
     };
   }, []);
 
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
+    
     if (video.paused) { 
-      video.play(); 
-      setPlaying(true); 
+      video.play()
+        .then(() => setPlaying(true))
+        .catch((err) => {
+          console.error("Erro ao reproduzir:", err);
+          setError("Não foi possível reproduzir o vídeo");
+        });
     } else { 
       video.pause(); 
       setPlaying(false); 
@@ -113,21 +274,19 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
     setMuted(newVolume === 0);
   };
 
-  // 🔧 PROBLEMA 4: Função para buscar no vídeo
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current;
     const progressBar = progressRef.current;
-    if (!video || !progressBar) return;
+    if (!video || !progressBar || !duration) return;
 
     const rect = progressBar.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
     video.currentTime = pos * duration;
   };
 
-  // 🔧 PROBLEMA 4: Pular 10 segundos
   const skip = (seconds: number) => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !duration) return;
     video.currentTime = Math.max(0, Math.min(duration, video.currentTime + seconds));
   };
 
@@ -161,7 +320,6 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose, duration]);
 
-  // 🔧 PROBLEMA 4: Formatar tempo em MM:SS
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds)) return "00:00";
     const mins = Math.floor(seconds / 60);
@@ -196,6 +354,28 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
             onClick={togglePlay}
           />
 
+          {/* Loading Spinner */}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-lg">
+              <div className="text-center">
+                <p className="text-red-500 text-lg mb-4">{error}</p>
+                <button 
+                  onClick={onClose}
+                  className="px-4 py-2 bg-primary rounded-lg hover:bg-primary/80"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Controls overlay */}
           <motion.div
             initial={false}
@@ -215,7 +395,7 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
 
             {/* Bottom controls */}
             <div className="space-y-2 pointer-events-auto">
-              {/* 🔧 PROBLEMA 4: Barra de progresso com preview de buffer */}
+              {/* Progress bar */}
               <div 
                 ref={progressRef}
                 className="relative h-1 bg-white/30 rounded-full cursor-pointer group"
@@ -248,7 +428,7 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
                   )}
                 </button>
 
-                {/* 🔧 PROBLEMA 4: Botões de skip */}
+                {/* Skip buttons */}
                 <button 
                   onClick={() => skip(-10)}
                   className="w-8 h-8 flex items-center justify-center hover:scale-110 transition-transform"
@@ -265,7 +445,7 @@ const VideoPlayer = ({ url, title, onClose }: VideoPlayerProps) => {
                   <SkipForward className="w-5 h-5 text-foreground" />
                 </button>
 
-                {/* 🔧 PROBLEMA 4: Temporizador do vídeo */}
+                {/* Time */}
                 <div className="text-foreground text-sm font-medium">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </div>

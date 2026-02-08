@@ -1,3 +1,4 @@
+// --- INÍCIO: src/pages/Dashboard.tsx ---
 import { useState, useMemo } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import FeaturedHero from "@/components/FeaturedHero";
@@ -14,9 +15,7 @@ const ROW_LIMIT = 12;
 const Dashboard = () => {
   const { isAdmin } = useAuth();
   const {
-    previewMovies,
     publishedMovies,
-    previewSeries,
     publishedSeries,
   } = useContent();
 
@@ -27,11 +26,9 @@ const Dashboard = () => {
 
   const [showAdmin, setShowAdmin] = useState(false);
 
-  // 🔐 Selecionar conteúdo baseado no role do usuário
-  // Admins veem preview (conteúdo não publicado) + publicado
-  // Usuários normais veem apenas conteúdo publicado
-  const movies = isAdmin ? previewMovies : publishedMovies;
-  const series = isAdmin ? previewSeries : publishedSeries;
+  // 🔐 USUÁRIOS COMUNS SEMPRE VEEM APENAS CONTEÚDO PUBLICADO
+  const movies = publishedMovies;
+  const series = publishedSeries;
 
   // Normalizar filmes (garantir que image existe)
   const normalizedMovies = useMemo(
@@ -87,21 +84,6 @@ const Dashboard = () => {
 
         <div className="relative z-10 -mt-32 pb-12">
           <div className="container mx-auto space-y-12">
-            {/* 🎯 Indicador de modo Admin (apenas para admins) */}
-            {isAdmin && (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-yellow-500 text-xl">⚡</span>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-yellow-500">Modo Administrador Ativo</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Você está visualizando todo o conteúdo, incluindo não publicado. Usuários normais veem apenas conteúdo publicado.
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Séries */}
             {series.length > 0 && (
               <SeriesRow title="Séries" series={series} />
@@ -124,9 +106,7 @@ const Dashboard = () => {
                 <div className="max-w-md mx-auto">
                   <h3 className="text-xl font-semibold mb-2">Nenhum conteúdo disponível</h3>
                   <p className="text-muted-foreground text-sm">
-                    {isAdmin 
-                      ? "Faça upload de conteúdo através do painel administrativo."
-                      : "Não há conteúdo publicado no momento. Volte mais tarde!"}
+                    Não há conteúdo publicado no momento. Volte mais tarde!
                   </p>
                 </div>
               </div>
@@ -137,7 +117,6 @@ const Dashboard = () => {
 
       <Footer />
 
-      {/* Player de vídeo */}
       {playerMovie && (
         <VideoPlayer
           url={playerMovie.url}
@@ -146,7 +125,7 @@ const Dashboard = () => {
         />
       )}
 
-      {/* 🔐 Painel Admin Modal - Apenas para admins */}
+      {/* 🔐 Painel Admin - Apenas para admins */}
       {showAdmin && isAdmin && (
         <AdminPanel onClose={() => setShowAdmin(false)} />
       )}
@@ -155,3 +134,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+// --- FIM: src/pages/Dashboard.tsx ---
